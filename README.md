@@ -1,6 +1,6 @@
 # The Fable 5 Showcase
 
-This repo is the answer to a simple question: "What happens when you prompt Fable to use up an entire week's worth of Claude Code usage at once?"
+This repo is the answer to a simple question: "What happens when you prompt Fable to use up an entire week's worth of Claude usage credits at once?"
 
 **57 self-contained creative web demos** — generative art, simulations, instruments, and procedural worlds — each one designed, built, polished, and QA-verified end to end by fleets of **Claude Fable 5** agents running in parallel, in a single day and from a single prompt.
 
@@ -21,6 +21,10 @@ Every demo is a single `index.html` file with **zero dependencies** — no build
 ## How it was made
 
 Single prompt in Claude Code -> Fanned out **~275 Claude Fable 5 subagent runs** across background multi-agent workflows — each demo flowed through a *design → build → enhance → QA* pipeline — until the week's API credits were spent. Thumbnails were captured by rendering each demo in a headless browser; the gallery embeds them as data URIs so it stays completely self-contained.
+
+## Prompt
+
+ok i have a challenge for you! i need to use up my anthropic api credits for the week in one day, and ONLY on fable 5!! lets see if we can't build something that leverages our claude code cli thats authed to build a bunch of epic demos for fable 5 of all sorts of different complex cool creative projects! leverage fable 5's full creativity and intelligence until our credits are gone!! tons of stuff in parallel!
 
 ## Structure
 
