@@ -227,6 +227,23 @@ button:focus-visible,input:focus-visible,#dial:focus-visible{outline:2px solid v
   #grain,#scanline,#standby span{animation:none}
   #console,#stationName.swap{animation-duration:.01s}
 }
+/* ---- mobile controls: sound first, big targets ---- */
+#stationBtns{display:none;grid-template-columns:1fr 1fr;gap:.45rem;flex:1;min-width:0}
+#stationBtns button{font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;padding:.75rem .4rem;
+  border-radius:10px;border:1px solid rgba(255,255,255,.14);color:var(--ink-dim);background:rgba(255,255,255,.04);
+  min-height:44px;line-height:1.25;text-align:center}
+#stationBtns button small{display:block;font-size:.55rem;opacity:.7;letter-spacing:.2em}
+#stationBtns button.on{color:var(--accent);border-color:var(--accent);box-shadow:0 0 12px rgba(120,255,220,.25)}
+@media (max-width:860px){
+  #stationBtns{display:grid}
+  .dial-hint{display:none}
+  #dial{width:96px;height:96px;flex:none}
+  .strips{padding:.6rem .2rem;justify-content:space-between;overflow-x:visible}
+  .strip{padding:0 .15rem}
+  .strip.master{margin-left:.15rem;padding-left:.45rem}
+  #powerBtn{width:64px;height:64px;font-size:1.5rem}
+  .side button.small{min-height:44px;padding:0 1rem}
+}
 </style>
 </head>
 <body>
@@ -257,6 +274,7 @@ button:focus-visible,input:focus-visible,#dial:focus-visible{outline:2px solid v
       <svg id="dialSvg" viewBox="-120 -120 240 240" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
     <div class="dial-hint">drag · scroll · keys 1–4</div>
+    <div id="stationBtns" aria-label="Stations"></div>
   </div>
   <div class="strips" id="strips"></div>
   <div class="side">
@@ -594,6 +612,7 @@ class Pad{
 /* ---------- graph assembly ---------- */
 const visQueue = [];   // scheduled musical events → visuals
 let A_sink=null;       // <audio> output sink (mobile/lock-screen playback)
+const LOW_POWER = matchMedia('(max-width:860px)').matches || matchMedia('(pointer:coarse)').matches;  // phones: DPR 1 + 30fps, sound > visuals
 
 function buildAudio(){
   ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -1155,7 +1174,7 @@ const cv=$('#scene'), cx=cv.getContext('2d',{alpha:false});
 let W=0,H=0,DPR=1;
 function resize(){
   const oldW=W, oldH=H;
-  DPR=Math.min(2, window.devicePixelRatio||1);
+  DPR=LOW_POWER?1:Math.min(2, window.devicePixelRatio||1);
   W=window.innerWidth; H=window.innerHeight;
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
   cx.setTransform(DPR,0,0,DPR,0,0);
@@ -1346,8 +1365,11 @@ function updateSleep(){
 
 /* main loop */
 let lastT=performance.now(), frameN=0, prevFreq=state.freq;
+let _lastDraw=0;
 function frame(now){
   requestAnimationFrame(frame);
+  if(LOW_POWER&&now-_lastDraw<31) return;   // ~30fps on phones: sound > visuals
+  _lastDraw=now;
   const dt=Math.min(.05,(now-lastT)/1000); lastT=now; frameN++;
   // retune animation (number keys)
   if(state.tuneTarget!==null){
@@ -1413,6 +1435,19 @@ window.addEventListener('error', e=>{ console.warn('midnight-radio:', e.message)
   lockStation(best, true);
   updateHud(w); setNeedle();
 })();
+/* ---------- mobile: station buttons + low-power visuals ---------- */
+(function(){
+  const host=$('#stationBtns'); if(!host) return;
+  STATIONS.forEach((st,i)=>{
+    const b=document.createElement('button');
+    b.innerHTML=st.name+'<small>'+st.freq.toFixed(1)+' FM</small>';
+    b.addEventListener('click',()=>{ if(!state.powered) powerOn(); state.tuneTarget=st.freq; uiTick(); });
+    host.appendChild(b);
+  });
+  setInterval(()=>{ let best=0,bd=1e9; STATIONS.forEach((st,i)=>{const d=Math.abs(state.freq-st.freq); if(d<bd){bd=d;best=i;}});
+    [...host.children].forEach((b,i)=>b.classList.toggle('on', i===best && bd<.6)); },400);
+})();
+
 /* ---------- keep-alive: overnight / lock-screen / mute-switch playback ---------- */
 async function keepAlive(){
   if(!state.powered || !ctx) return;
