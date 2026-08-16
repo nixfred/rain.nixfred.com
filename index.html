@@ -248,6 +248,7 @@ button:focus-visible,input:focus-visible,#dial:focus-visible{outline:2px solid v
 </header>
 
 <div id="standby"><span>press power · space</span></div>
+<audio id="sink" playsinline preload="auto" style="display:none"></audio>
 
 <section id="console" class="off" aria-label="Radio console">
   <button id="drawerBtn" aria-label="Toggle console">— console —</button>
@@ -592,6 +593,7 @@ class Pad{
 
 /* ---------- graph assembly ---------- */
 const visQueue = [];   // scheduled musical events → visuals
+let A_sink=null;       // <audio> output sink (mobile/lock-screen playback)
 
 function buildAudio(){
   ctx = new (window.AudioContext||window.webkitAudioContext)();
@@ -604,7 +606,18 @@ function buildAudio(){
   const masterGain = g(0);
   const masterAn = ctx.createAnalyser(); masterAn.fftSize=2048; masterAn.smoothingTimeConstant=.82;
   masterBus.connect(comp); comp.connect(masterGain);
-  masterGain.connect(masterAn); masterAn.connect(ctx.destination);
+  masterGain.connect(masterAn);
+  // Output via a MediaStream → <audio> element: on iOS this makes the page a
+  // "media" session (plays with the mute switch on, keeps running when the
+  // screen locks). Falls back to ctx.destination if the element can't play.
+  try{
+    const msd=ctx.createMediaStreamDestination();
+    masterAn.connect(msd);
+    const sink=document.getElementById('sink');
+    sink.srcObject=msd.stream; sink.volume=1;
+    sink.play().catch(()=>{ masterAn.disconnect(msd); masterAn.connect(ctx.destination); });
+    A_sink=sink;
+  }catch(e){ masterAn.connect(ctx.destination); }
 
   const sendBus = g(1);
   const reverbs = {};   // per-station convolver cache
@@ -1400,6 +1413,31 @@ window.addEventListener('error', e=>{ console.warn('midnight-radio:', e.message)
   lockStation(best, true);
   updateHud(w); setNeedle();
 })();
+/* ---------- keep-alive: overnight / lock-screen / mute-switch playback ---------- */
+async function keepAlive(){
+  if(!state.powered || !ctx) return;
+  try{
+    if(ctx.state!=='running') await ctx.resume();
+    if(A_sink && A_sink.paused && A_sink.srcObject) await A_sink.play();
+  }catch(e){}
+}
+setInterval(keepAlive, 4000);
+document.addEventListener('visibilitychange', keepAlive);
+window.addEventListener('focus', keepAlive);
+window.addEventListener('pageshow', keepAlive);
+['touchend','pointerup','keydown'].forEach(ev=>document.addEventListener(ev, keepAlive, {passive:true}));
+// Safari fires 'interrupted' (calls, Siri) → resume when it ends
+if('mediaSession' in navigator){
+  const ms=navigator.mediaSession;
+  const meta=()=>{ try{ ms.metadata=new MediaMetadata({title:'Midnight Radio', artist:'rain.nixfred.com', album:'generative ambient station'}); ms.playbackState=state.powered?'playing':'paused'; }catch(e){} };
+  ms.setActionHandler('play', ()=>{ if(!state.powered) powerOn(); else keepAlive(); meta(); });
+  ms.setActionHandler('pause', ()=>{ /* keep playing: overnight use — pause = no-op */ keepAlive(); meta(); });
+  ms.setActionHandler('stop', ()=>{ powerOff(); meta(); });
+  setInterval(meta, 5000);
+}
+if(ctx){ ctx.addEventListener('statechange', keepAlive); }
+document.addEventListener('visibilitychange',()=>{ if(ctx&&!ctx.__ka){ ctx.__ka=1; ctx.addEventListener('statechange', keepAlive); } });
+$('#powerBtn').addEventListener('click', ()=>{ setTimeout(()=>{ if(ctx&&!ctx.__ka){ ctx.__ka=1; ctx.addEventListener('statechange', keepAlive); } },50); });
 </script>
 </body>
 </html>
