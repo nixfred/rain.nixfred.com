@@ -1,0 +1,6 @@
+{
+  "name": "rain",
+  "compatibility_date": "2026-08-01",
+  "assets": { "directory": "./", "not_found_handling": "404-page" },
+  "routes": [{ "pattern": "rain.nixfred.com", "custom_domain": true }]
+}
