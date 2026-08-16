@@ -85,6 +85,7 @@ button:focus-visible,input:focus-visible,#dial:focus-visible{outline:2px solid v
 #standby{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
   z-index:9;pointer-events:none;transition:opacity 1s}
 #standby.hide{opacity:0}
+#standby{pointer-events:none}
 #standby span{font-weight:200;font-size:clamp(.7rem,1.8vw,.95rem);letter-spacing:.5em;
   text-indent:.5em;text-transform:uppercase;color:var(--ink-dim);
   animation:breathe 4s ease-in-out infinite}
@@ -103,7 +104,7 @@ button:focus-visible,input:focus-visible,#dial:focus-visible{outline:2px solid v
     from{opacity:0;transform:translateX(-50%) translateY(26px)}
     to{opacity:1;transform:translateX(-50%) translateY(0)}}
 }
-#console.off .strips,#console.off .dial-zone{opacity:.35;filter:saturate(.3)}
+#console.off .strips,#console.off .dial-zone{opacity:1;filter:none}
 #console>*{transition:opacity .8s,filter .8s}
 
 .dial-zone{display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -264,7 +265,7 @@ button:focus-visible,input:focus-visible,#dial:focus-visible{outline:2px solid v
   <div id="rds" aria-hidden="true"></div>
 </header>
 
-<div id="standby"><span>press power · space</span></div>
+<div id="standby"><span>tap anywhere to start</span></div>
 <audio id="sink" playsinline preload="auto" style="display:none"></audio>
 
 <section id="console" class="off" aria-label="Radio console">
@@ -1446,6 +1447,26 @@ window.addEventListener('error', e=>{ console.warn('midnight-radio:', e.message)
   });
   setInterval(()=>{ let best=0,bd=1e9; STATIONS.forEach((st,i)=>{const d=Math.abs(state.freq-st.freq); if(d<bd){bd=d;best=i;}});
     [...host.children].forEach((b,i)=>b.classList.toggle('on', i===best && bd<.6)); },400);
+})();
+
+/* ---------- autostart: sound running from the first moment the browser allows ---------- */
+(function(){
+  let starting=false;
+  const evs=['pointerdown','touchend','click','keydown'];
+  const gestureOff=()=>evs.forEach(e=>window.removeEventListener(e,onGesture,true));
+  async function start(){
+    if(state.powered||starting) return; starting=true;
+    try{ await powerOn(); }catch(e){}
+    starting=false; if(state.powered) gestureOff();
+  }
+  function onGesture(){ start(); }
+  evs.forEach(e=>window.addEventListener(e,onGesture,{capture:true,passive:true}));
+  // immediate attempt: only if the browser lets the context run without a gesture
+  window.addEventListener('load',()=>setTimeout(()=>{
+    try{ if(!ctx) buildAudio(); }catch(e){ return; }
+    if(ctx.state==='running') start();
+    else ctx.resume().then(()=>{ if(ctx.state==='running') start(); }).catch(()=>{});
+  },150));
 })();
 
 /* ---------- keep-alive: overnight / lock-screen / mute-switch playback ---------- */
